@@ -3,13 +3,40 @@
 
 A desktop content management system developed in **C#** and **Windows Forms (WinForms)** for **Visual Studio 2026 / 2022**. The application organizes content into categories and subcategories using a hierarchical tree structure, backed entirely by a **simple text-file and local directory storage system** without databases, complex architectures, or external APIs.
 
-### 🌟 New in Version 2 (Faculty Requested Features):
-- **Right-Click Context Menu on TreeView Nodes:**
-  - **Add Child Node**: Directly adds a subcategory under the right-clicked node.
-  - **Rename Node**: Quickly prompts to rename the right-clicked node.
-  - **Delete Node**: Prompts for confirmation and deletes the node and all sub-content.
-- **Right-Click on Empty TreeView Space:**
-  - Automatically displays **Add Root Node** to easily create a new top-level category anywhere in the tree view area.
+### 🌟 Faculty Requested Features Implemented in Version 2:
+1. **Complete 6-Option Right-Click Context Menu on Categories:**
+   - **Add Child Node**: Directly adds a subcategory under the selected category.
+   - **Rename Node**: Prompts to rename the selected category in-place.
+   - **Delete Node**: Prompts for confirmation and deletes the category, subcategories, and files.
+   - **Add Hyperlink**: Opens hyperlink dialog, adds the link, and immediately updates TreeView.
+   - **Upload File**: Opens file picker (`OpenFileDialog`), copies files into local storage, and updates TreeView.
+   - **Add Rich Text**: Prompts for description title, creates a new RTF note, and updates TreeView.
+   - **Add Root Node**: Displays when right-clicking on empty TreeView area to create top-level categories.
+   - *Right-clicking any category node automatically selects it before displaying the menu.*
+
+2. **Expandable Content Groups under Each Category:**
+   - Each category displays its stored content directly in the TreeView:
+     ```
+     Programming
+       Java
+         Hyperlinks
+           Language Reference
+         Uploaded Files
+           sample_notes.txt
+         Rich Text
+           Module Notes
+       Python
+         Hyperlinks
+         Uploaded Files
+         Rich Text
+     ```
+   - **Double-Clicking Items:**
+     - **Hyperlink**: Opens saved URL in default web browser.
+     - **Uploaded File**: Opens file using default registered Windows viewer.
+     - **Rich Text**: Loads description into the rich-text editor for viewing/editing.
+   - **Immediate Refresh**: TreeView content automatically updates whenever a hyperlink, file, or description is added, edited, or deleted.
+   - **State Persistence**: Hierarchy and content reload automatically when application is restarted.
+
 
 
 ---

@@ -69,6 +69,13 @@ namespace TreeCMS.Forms
                     }
                 }
 
+                // Third pass: populate expandable content groups (Hyperlinks, Uploaded Files, Rich Text)
+                foreach (NodeData data in _allNodes)
+                {
+                    TreeNode tn = nodeMap[data.Id];
+                    PopulateCategoryContentNodes(tn, data);
+                }
+
                 treeViewCategories.ExpandAll();
                 treeViewCategories.EndUpdate();
 
@@ -92,16 +99,267 @@ namespace TreeCMS.Forms
             }
         }
 
+        /// <summary>
+        /// Populates or refreshes the 3 expandable content groups under a category node:
+        /// - Hyperlinks
+        /// - Uploaded Files
+        /// - Rich Text
+        /// </summary>
+        private void PopulateCategoryContentNodes(TreeNode catTreeNode, NodeData data)
+        {
+            if (catTreeNode == null || data == null) return;
+
+            TreeNode groupLinks = null;
+            TreeNode groupFiles = null;
+            TreeNode groupRichText = null;
+
+            // Search for existing group nodes
+            foreach (TreeNode child in catTreeNode.Nodes)
+            {
+                if (child.Tag is string)
+                {
+                    string tagStr = (string)child.Tag;
+                    if (tagStr == "GROUP_HYPERLINKS") groupLinks = child;
+                    else if (tagStr == "GROUP_FILES") groupFiles = child;
+                    else if (tagStr == "GROUP_RICHTEXT") groupRichText = child;
+                }
+            }
+
+            if (groupLinks == null)
+            {
+                groupLinks = new TreeNode("Hyperlinks");
+                groupLinks.Tag = "GROUP_HYPERLINKS";
+                catTreeNode.Nodes.Add(groupLinks);
+            }
+
+            if (groupFiles == null)
+            {
+                groupFiles = new TreeNode("Uploaded Files");
+                groupFiles.Tag = "GROUP_FILES";
+                catTreeNode.Nodes.Add(groupFiles);
+            }
+
+            if (groupRichText == null)
+            {
+                groupRichText = new TreeNode("Rich Text");
+                groupRichText.Tag = "GROUP_RICHTEXT";
+                catTreeNode.Nodes.Add(groupRichText);
+            }
+
+            // 1. Populate Hyperlinks under Hyperlinks group
+            groupLinks.Nodes.Clear();
+            if (data.Hyperlinks != null)
+            {
+                foreach (HyperlinkItem link in data.Hyperlinks)
+                {
+                    TreeNode itemNode = new TreeNode(link.Title);
+                    itemNode.Tag = link;
+                    itemNode.ToolTipText = link.Url;
+                    groupLinks.Nodes.Add(itemNode);
+                }
+            }
+
+            // 2. Populate Uploaded Files under Uploaded Files group
+            groupFiles.Nodes.Clear();
+            try
+            {
+                FileInfo[] files = _dataManager.GetUploadedFiles(data);
+                if (files != null)
+                {
+                    foreach (FileInfo fi in files)
+                    {
+                        TreeNode itemNode = new TreeNode(fi.Name);
+                        itemNode.Tag = fi;
+                        itemNode.ToolTipText = string.Format("{0:N0} bytes", fi.Length);
+                        groupFiles.Nodes.Add(itemNode);
+                    }
+                }
+            }
+            catch { }
+
+            // 3. Populate Rich-Text descriptions under Rich Text group
+            groupRichText.Nodes.Clear();
+            if (data.Descriptions != null)
+            {
+                foreach (DescriptionItem desc in data.Descriptions)
+                {
+                    TreeNode itemNode = new TreeNode(desc.Title);
+                    itemNode.Tag = desc;
+                    itemNode.ToolTipText = desc.FileName;
+                    groupRichText.Nodes.Add(itemNode);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Climbs up the hierarchy to return the parent Category TreeNode (whose Tag is NodeData).
+        /// </summary>
+        private TreeNode GetCategoryTreeNode(TreeNode tn)
+        {
+            if (tn == null) return null;
+            if (tn.Tag is NodeData) return tn;
+            if (tn.Parent != null)
+            {
+                if (tn.Parent.Tag is NodeData) return tn.Parent;
+                if (tn.Parent.Parent != null && tn.Parent.Parent.Tag is NodeData)
+                    return tn.Parent.Parent;
+            }
+            return null;
+        }
+
         private void TreeViewCategories_AfterSelect(object sender, TreeViewEventArgs e)
         {
-            if (e.Node == null || e.Node.Tag == null)
+            if (e.Node == null)
             {
                 ClearNodeDetails();
                 return;
             }
 
-            _selectedNode = e.Node.Tag as NodeData;
-            DisplaySelectedNodeDetails();
+            // Case 1: Clicked on a Category node
+            if (e.Node.Tag is NodeData)
+            {
+                _selectedNode = e.Node.Tag as NodeData;
+                DisplaySelectedNodeDetails();
+                return;
+            }
+
+            // Case 2: Clicked on a Content Group node (Hyperlinks, Uploaded Files, Rich Text)
+            if (e.Node.Tag is string)
+            {
+                string groupKey = (string)e.Node.Tag;
+                TreeNode catTn = GetCategoryTreeNode(e.Node);
+                if (catTn != null && catTn.Tag is NodeData)
+                {
+                    _selectedNode = catTn.Tag as NodeData;
+                    DisplaySelectedNodeDetails();
+
+                    if (groupKey == "GROUP_HYPERLINKS")
+                        tabControlContent.SelectedTab = tabHyperlinks;
+                    else if (groupKey == "GROUP_FILES")
+                        tabControlContent.SelectedTab = tabFiles;
+                    else if (groupKey == "GROUP_RICHTEXT")
+                        tabControlContent.SelectedTab = tabDescriptions;
+                }
+                return;
+            }
+
+            // Case 3: Clicked on an individual Content Item
+            TreeNode parentCatTn = GetCategoryTreeNode(e.Node);
+            if (parentCatTn != null && parentCatTn.Tag is NodeData)
+            {
+                _selectedNode = parentCatTn.Tag as NodeData;
+                DisplaySelectedNodeDetails();
+
+                if (e.Node.Tag is HyperlinkItem)
+                {
+                    tabControlContent.SelectedTab = tabHyperlinks;
+                    HyperlinkItem link = e.Node.Tag as HyperlinkItem;
+                    foreach (ListViewItem lvi in lvHyperlinks.Items)
+                    {
+                        if (lvi.Tag == link)
+                        {
+                            lvi.Selected = true;
+                            lvi.EnsureVisible();
+                            break;
+                        }
+                    }
+                }
+                else if (e.Node.Tag is FileInfo)
+                {
+                    tabControlContent.SelectedTab = tabFiles;
+                    FileInfo fi = e.Node.Tag as FileInfo;
+                    foreach (ListViewItem lvi in lvFiles.Items)
+                    {
+                        FileInfo itemFi = lvi.Tag as FileInfo;
+                        if (itemFi != null && itemFi.FullName == fi.FullName)
+                        {
+                            lvi.Selected = true;
+                            lvi.EnsureVisible();
+                            break;
+                        }
+                    }
+                }
+                else if (e.Node.Tag is DescriptionItem)
+                {
+                    tabControlContent.SelectedTab = tabDescriptions;
+                    DescriptionItem desc = e.Node.Tag as DescriptionItem;
+                    for (int i = 0; i < lbDescriptions.Items.Count; i++)
+                    {
+                        DescriptionItem item = lbDescriptions.Items[i] as DescriptionItem;
+                        if (item != null && item.FileName == desc.FileName)
+                        {
+                            lbDescriptions.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        private void TreeViewCategories_NodeMouseDoubleClick(object sender, TreeNodeMouseClickEventArgs e)
+        {
+            if (e.Node == null) return;
+
+            // Double-clicking a Hyperlink: opens saved URL in default browser
+            if (e.Node.Tag is HyperlinkItem)
+            {
+                HyperlinkItem link = e.Node.Tag as HyperlinkItem;
+                if (link != null && !string.IsNullOrEmpty(link.Url))
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(link.Url) { UseShellExecute = true });
+                        SetStatus("Opening URL: " + link.Url);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Could not open hyperlink: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+            // Double-clicking an Uploaded File: opens using default application
+            else if (e.Node.Tag is FileInfo)
+            {
+                FileInfo fi = e.Node.Tag as FileInfo;
+                if (fi != null)
+                {
+                    if (File.Exists(fi.FullName))
+                    {
+                        try
+                        {
+                            Process.Start(new ProcessStartInfo(fi.FullName) { UseShellExecute = true });
+                            SetStatus("Opened file: " + fi.Name);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("Could not open file: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("The file '" + fi.Name + "' was not found on disk.", "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+            // Double-clicking a Rich Text Description: loads into rich-text editor
+            else if (e.Node.Tag is DescriptionItem)
+            {
+                DescriptionItem desc = e.Node.Tag as DescriptionItem;
+                if (desc != null)
+                {
+                    tabControlContent.SelectedTab = tabDescriptions;
+                    for (int i = 0; i < lbDescriptions.Items.Count; i++)
+                    {
+                        DescriptionItem item = lbDescriptions.Items[i] as DescriptionItem;
+                        if (item != null && item.FileName == desc.FileName)
+                        {
+                            lbDescriptions.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                    SetStatus("Loaded description: " + desc.Title);
+                }
+            }
         }
 
         private void DisplaySelectedNodeDetails()
@@ -146,12 +404,17 @@ namespace TreeCMS.Forms
 
         private string GetCurrentNodeBreadcrumb(TreeNode node)
         {
-            if (node == null) return string.Empty;
+            TreeNode catNode = GetCategoryTreeNode(node);
+            if (catNode == null) return string.Empty;
+
             List<string> parts = new List<string>();
-            TreeNode curr = node;
+            TreeNode curr = catNode;
             while (curr != null)
             {
-                parts.Insert(0, curr.Text);
+                if (curr.Tag is NodeData)
+                {
+                    parts.Insert(0, curr.Text);
+                }
                 curr = curr.Parent;
             }
             return string.Join(" > ", parts.ToArray());
@@ -183,6 +446,7 @@ namespace TreeCMS.Forms
                 TreeNode tn = new TreeNode(newNode.Name);
                 tn.Tag = newNode;
                 treeViewCategories.Nodes.Add(tn);
+                PopulateCategoryContentNodes(tn, newNode);
                 treeViewCategories.SelectedNode = tn;
 
                 statusNodeCount.Text = "Nodes: " + _allNodes.Count;
@@ -196,9 +460,10 @@ namespace TreeCMS.Forms
 
         private void BtnAddChild_Click(object sender, EventArgs e)
         {
-            if (treeViewCategories.SelectedNode == null || _selectedNode == null)
+            TreeNode parentTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+            if (parentTn == null || _selectedNode == null)
             {
-                MessageBox.Show("Please select a parent node first.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Please select a parent category node first.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -219,10 +484,30 @@ namespace TreeCMS.Forms
                 _allNodes.Add(newNode);
                 _dataManager.SaveTree(_allNodes);
 
-                TreeNode parentTn = treeViewCategories.SelectedNode;
                 TreeNode childTn = new TreeNode(newNode.Name);
                 childTn.Tag = newNode;
-                parentTn.Nodes.Add(childTn);
+
+                // Insert child category before any display-only content groups
+                int insertIndex = -1;
+                for (int i = 0; i < parentTn.Nodes.Count; i++)
+                {
+                    if (parentTn.Nodes[i].Tag is string && ((string)parentTn.Nodes[i].Tag).StartsWith("GROUP_"))
+                    {
+                        insertIndex = i;
+                        break;
+                    }
+                }
+
+                if (insertIndex >= 0)
+                {
+                    parentTn.Nodes.Insert(insertIndex, childTn);
+                }
+                else
+                {
+                    parentTn.Nodes.Add(childTn);
+                }
+
+                PopulateCategoryContentNodes(childTn, newNode);
                 parentTn.Expand();
                 treeViewCategories.SelectedNode = childTn;
 
@@ -237,7 +522,8 @@ namespace TreeCMS.Forms
 
         private void BtnUpdateNodeName_Click(object sender, EventArgs e)
         {
-            if (treeViewCategories.SelectedNode == null || _selectedNode == null)
+            TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+            if (catTn == null || _selectedNode == null)
             {
                 MessageBox.Show("Please select a node to update.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
@@ -254,12 +540,12 @@ namespace TreeCMS.Forms
             try
             {
                 _selectedNode.Name = newName;
-                treeViewCategories.SelectedNode.Text = newName;
+                catTn.Text = newName;
 
                 _dataManager.UpdateNodeName(_selectedNode);
                 _dataManager.SaveTree(_allNodes);
 
-                lblBreadcrumb.Text = "Path: " + GetCurrentNodeBreadcrumb(treeViewCategories.SelectedNode);
+                lblBreadcrumb.Text = "Path: " + GetCurrentNodeBreadcrumb(catTn);
                 SetStatus("Node renamed to '" + newName + "'.");
                 MessageBox.Show("Node name updated successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -271,7 +557,8 @@ namespace TreeCMS.Forms
 
         private void BtnDeleteNode_Click(object sender, EventArgs e)
         {
-            if (treeViewCategories.SelectedNode == null || _selectedNode == null)
+            TreeNode selectedTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+            if (selectedTn == null || _selectedNode == null)
             {
                 MessageBox.Show("Please select a node to delete.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
@@ -304,11 +591,10 @@ namespace TreeCMS.Forms
 
                 _dataManager.SaveTree(_allNodes);
 
-                TreeNode selectedTn = treeViewCategories.SelectedNode;
                 TreeNode parentTn = selectedTn.Parent;
                 selectedTn.Remove();
 
-                if (parentTn != null)
+                if (parentTn != null && parentTn.Tag is NodeData)
                 {
                     treeViewCategories.SelectedNode = parentTn;
                 }
@@ -372,7 +658,15 @@ namespace TreeCMS.Forms
         {
             if (e.Button == MouseButtons.Right)
             {
-                treeViewCategories.SelectedNode = e.Node;
+                TreeNode catNode = GetCategoryTreeNode(e.Node);
+                if (catNode != null)
+                {
+                    treeViewCategories.SelectedNode = catNode;
+                }
+                else
+                {
+                    treeViewCategories.SelectedNode = e.Node;
+                }
             }
         }
 
@@ -383,12 +677,24 @@ namespace TreeCMS.Forms
 
             if (targetNode != null)
             {
-                // Right-clicked directly on a node
-                treeViewCategories.SelectedNode = targetNode;
+                // Right-clicked directly on a category node or a content item inside it
+                TreeNode catNode = GetCategoryTreeNode(targetNode);
+                if (catNode != null && catNode.Tag is NodeData)
+                {
+                    treeViewCategories.SelectedNode = catNode;
+                    _selectedNode = catNode.Tag as NodeData;
+                    DisplaySelectedNodeDetails();
+                }
+
+                // Show complete category context menu (Items 1-6)
                 menuItemCtxAddChild.Visible = true;
                 menuItemCtxRename.Visible = true;
                 menuItemCtxDelete.Visible = true;
-                toolStripSeparatorCtx.Visible = false;
+                toolStripSeparatorCtx.Visible = true;
+                menuItemCtxAddHyperlink.Visible = true;
+                menuItemCtxUploadFile.Visible = true;
+                menuItemCtxAddRichText.Visible = true;
+                toolStripSeparatorCtx2.Visible = false;
                 menuItemCtxAddRoot.Visible = false;
             }
             else
@@ -398,6 +704,10 @@ namespace TreeCMS.Forms
                 menuItemCtxRename.Visible = false;
                 menuItemCtxDelete.Visible = false;
                 toolStripSeparatorCtx.Visible = false;
+                menuItemCtxAddHyperlink.Visible = false;
+                menuItemCtxUploadFile.Visible = false;
+                menuItemCtxAddRichText.Visible = false;
+                toolStripSeparatorCtx2.Visible = false;
                 menuItemCtxAddRoot.Visible = true;
             }
         }
@@ -409,11 +719,7 @@ namespace TreeCMS.Forms
 
         private void MenuItemCtxRename_Click(object sender, EventArgs e)
         {
-            if (_selectedNode == null || treeViewCategories.SelectedNode == null)
-            {
-                MessageBox.Show("Please select a node to rename.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+            if (_selectedNode == null) return;
 
             string newName = PromptInput("Enter new name for node '" + _selectedNode.Name + "':", "Rename Node");
             if (!string.IsNullOrWhiteSpace(newName))
@@ -426,6 +732,38 @@ namespace TreeCMS.Forms
         private void MenuItemCtxDelete_Click(object sender, EventArgs e)
         {
             BtnDeleteNode_Click(sender, e);
+        }
+
+        private void MenuItemCtxAddHyperlink_Click(object sender, EventArgs e)
+        {
+            if (_selectedNode == null) return;
+
+            using (HyperlinkDialog dlg = new HyperlinkDialog())
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK && dlg.Hyperlink != null)
+                {
+                    _selectedNode.Hyperlinks.Add(dlg.Hyperlink);
+                    _dataManager.SaveHyperlinks(_selectedNode);
+                    RefreshHyperlinksList();
+
+                    TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                    if (catTn != null)
+                    {
+                        PopulateCategoryContentNodes(catTn, _selectedNode);
+                    }
+                    SetStatus("Hyperlink '" + dlg.Hyperlink.Title + "' added to " + _selectedNode.Name);
+                }
+            }
+        }
+
+        private void MenuItemCtxUploadFile_Click(object sender, EventArgs e)
+        {
+            BtnUploadFile_Click(sender, e);
+        }
+
+        private void MenuItemCtxAddRichText_Click(object sender, EventArgs e)
+        {
+            BtnAddDescription_Click(sender, e);
         }
 
         private void MenuItemCtxAddRoot_Click(object sender, EventArgs e)
@@ -496,6 +834,11 @@ namespace TreeCMS.Forms
                 _dataManager.SaveHyperlinks(_selectedNode);
 
                 RefreshHyperlinksList();
+                TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                if (catTn != null)
+                {
+                    PopulateCategoryContentNodes(catTn, _selectedNode);
+                }
                 txtLinkTitle.Clear();
                 txtLinkUrl.Clear();
                 SetStatus("Hyperlink '" + title + "' added.");
@@ -539,6 +882,11 @@ namespace TreeCMS.Forms
                 _dataManager.SaveHyperlinks(_selectedNode);
 
                 RefreshHyperlinksList();
+                TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                if (catTn != null)
+                {
+                    PopulateCategoryContentNodes(catTn, _selectedNode);
+                }
                 SetStatus("Hyperlink updated.");
             }
             catch (Exception ex)
@@ -573,6 +921,11 @@ namespace TreeCMS.Forms
                     _dataManager.SaveHyperlinks(_selectedNode);
 
                     RefreshHyperlinksList();
+                    TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                    if (catTn != null)
+                    {
+                        PopulateCategoryContentNodes(catTn, _selectedNode);
+                    }
                     txtLinkTitle.Clear();
                     txtLinkUrl.Clear();
                     SetStatus("Hyperlink removed.");
@@ -676,6 +1029,11 @@ namespace TreeCMS.Forms
                     }
 
                     RefreshFilesList();
+                    TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                    if (catTn != null)
+                    {
+                        PopulateCategoryContentNodes(catTn, _selectedNode);
+                    }
                     SetStatus("Uploaded " + uploadedCount + " file(s) into " + _selectedNode.Name);
                 }
             }
@@ -738,6 +1096,11 @@ namespace TreeCMS.Forms
                 {
                     _dataManager.DeleteUploadedFile(_selectedNode, fi.Name);
                     RefreshFilesList();
+                    TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                    if (catTn != null)
+                    {
+                        PopulateCategoryContentNodes(catTn, _selectedNode);
+                    }
                     SetStatus("Deleted file: " + fi.Name);
                 }
                 catch (Exception ex)
@@ -852,6 +1215,11 @@ namespace TreeCMS.Forms
                 _dataManager.SaveDescriptionsIndex(_selectedNode);
 
                 RefreshDescriptionsList();
+                TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                if (catTn != null)
+                {
+                    PopulateCategoryContentNodes(catTn, _selectedNode);
+                }
                 lbDescriptions.SelectedItem = newItem;
                 SetStatus("New description created.");
             }
@@ -882,6 +1250,11 @@ namespace TreeCMS.Forms
                 {
                     _dataManager.DeleteDescription(_selectedNode, _selectedDescription);
                     RefreshDescriptionsList();
+                    TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                    if (catTn != null)
+                    {
+                        PopulateCategoryContentNodes(catTn, _selectedNode);
+                    }
                     SetStatus("Description deleted.");
                 }
                 catch (Exception ex)
@@ -917,6 +1290,12 @@ namespace TreeCMS.Forms
                 // Refresh ListBox item text without resetting cursor
                 int idx = lbDescriptions.SelectedIndex;
                 lbDescriptions.Items[idx] = _selectedDescription;
+
+                TreeNode catTn = GetCategoryTreeNode(treeViewCategories.SelectedNode);
+                if (catTn != null)
+                {
+                    PopulateCategoryContentNodes(catTn, _selectedNode);
+                }
 
                 lblDescStatus.Text = "Saved at " + DateTime.Now.ToString("HH:mm:ss");
                 SetStatus("Description '" + title + "' saved.");

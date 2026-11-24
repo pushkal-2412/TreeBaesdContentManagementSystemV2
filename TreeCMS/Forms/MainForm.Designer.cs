@@ -49,6 +49,10 @@ namespace TreeCMS.Forms
             this.menuItemCtxRename = new System.Windows.Forms.ToolStripMenuItem();
             this.menuItemCtxDelete = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparatorCtx = new System.Windows.Forms.ToolStripSeparator();
+            this.menuItemCtxAddHyperlink = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuItemCtxUploadFile = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuItemCtxAddRichText = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparatorCtx2 = new System.Windows.Forms.ToolStripSeparator();
             this.menuItemCtxAddRoot = new System.Windows.Forms.ToolStripMenuItem();
             this.panelTreeButtons = new System.Windows.Forms.Panel();
             this.btnAddRoot = new System.Windows.Forms.Button();
@@ -298,6 +302,7 @@ namespace TreeCMS.Forms
             this.treeViewCategories.ContextMenuStrip = this.contextMenuTree;
             this.treeViewCategories.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.TreeViewCategories_AfterSelect);
             this.treeViewCategories.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.TreeViewCategories_NodeMouseClick);
+            this.treeViewCategories.NodeMouseDoubleClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.TreeViewCategories_NodeMouseDoubleClick);
 
             //
             // contextMenuTree
@@ -307,12 +312,16 @@ namespace TreeCMS.Forms
                 this.menuItemCtxRename,
                 this.menuItemCtxDelete,
                 this.toolStripSeparatorCtx,
+                this.menuItemCtxAddHyperlink,
+                this.menuItemCtxUploadFile,
+                this.menuItemCtxAddRichText,
+                this.toolStripSeparatorCtx2,
                 this.menuItemCtxAddRoot
             });
             this.contextMenuTree.Opening += new System.ComponentModel.CancelEventHandler(this.ContextMenuTree_Opening);
 
             // menuItemCtxAddChild
-            this.menuItemCtxAddChild.Text = "+ Add Child Node";
+            this.menuItemCtxAddChild.Text = "Add Child Node";
             this.menuItemCtxAddChild.Click += new System.EventHandler(this.MenuItemCtxAddChild_Click);
 
             // menuItemCtxRename
@@ -323,8 +332,20 @@ namespace TreeCMS.Forms
             this.menuItemCtxDelete.Text = "Delete Node";
             this.menuItemCtxDelete.Click += new System.EventHandler(this.MenuItemCtxDelete_Click);
 
+            // menuItemCtxAddHyperlink
+            this.menuItemCtxAddHyperlink.Text = "Add Hyperlink";
+            this.menuItemCtxAddHyperlink.Click += new System.EventHandler(this.MenuItemCtxAddHyperlink_Click);
+
+            // menuItemCtxUploadFile
+            this.menuItemCtxUploadFile.Text = "Upload File";
+            this.menuItemCtxUploadFile.Click += new System.EventHandler(this.MenuItemCtxUploadFile_Click);
+
+            // menuItemCtxAddRichText
+            this.menuItemCtxAddRichText.Text = "Add Rich Text";
+            this.menuItemCtxAddRichText.Click += new System.EventHandler(this.MenuItemCtxAddRichText_Click);
+
             // menuItemCtxAddRoot
-            this.menuItemCtxAddRoot.Text = "+ Add Root Node";
+            this.menuItemCtxAddRoot.Text = "Add Root Node";
             this.menuItemCtxAddRoot.Click += new System.EventHandler(this.MenuItemCtxAddRoot_Click);
 
             // panelTreeButtons
@@ -857,6 +878,10 @@ namespace TreeCMS.Forms
         private System.Windows.Forms.ToolStripMenuItem menuItemCtxRename;
         private System.Windows.Forms.ToolStripMenuItem menuItemCtxDelete;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparatorCtx;
+        private System.Windows.Forms.ToolStripMenuItem menuItemCtxAddHyperlink;
+        private System.Windows.Forms.ToolStripMenuItem menuItemCtxUploadFile;
+        private System.Windows.Forms.ToolStripMenuItem menuItemCtxAddRichText;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparatorCtx2;
         private System.Windows.Forms.ToolStripMenuItem menuItemCtxAddRoot;
         private System.Windows.Forms.Panel panelTreeButtons;
         private System.Windows.Forms.Button btnAddRoot;
